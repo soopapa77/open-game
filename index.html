@@ -220,6 +220,29 @@
         .stat-mental { background-color: #2ecc71; }  /* 초록 */
         
         .stat-cost { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+
+        /* [추가] 차감 텍스트 스타일 (빨간색 글씨) */
+        .minus-text {
+            position: absolute;       /* 둥둥 떠다니게 설정 */
+            color: #ff4444;           /* 빨간색 (경고/차감 느낌) */
+            font-weight: bold;        /* 글씨 굵게 */
+            font-size: 20px;          /* 글씨 크기 */
+            pointer-events: none;     /* 마우스 클릭 방해 금지 */
+            z-index: 1000;            /* 다른 요소들보다 위에 표시 */
+            animation: floatUpFade 1s ease-out forwards; /* 1초 동안 위로 뜨며 사라짐 */
+        }
+        
+        /* [추가] 텍스트가 위로 올라가면서 투명해지는 애니메이션 */
+        @keyframes floatUpFade {
+            0% {
+                opacity: 1;           /* 선명하게 시작 */
+                transform: translateY(0); /* 원래 위치 */
+            }
+            100% {
+                opacity: 0;           /* 투명해짐 */
+                transform: translateY(-30px); /* 위로 30px 이동 */
+            }
+        }
     </style>
 </head>
 <body>
@@ -620,28 +643,44 @@
             }
         }
 
-        // 피버 모드 발동 (10초)
+       
         function activateFeverMode() {
-            isFeverMode = true;
-            document.body.classList.add('fever-mode');
-            document.getElementById('fever-timer-container').style.display = 'block';
+            const ring = document.querySelector('.ring-progress');
             
-            let timeLeft = 100; // 100%
-            const timerBar = document.getElementById('fever-timer-bar');
+            // 이미 실행 중이면 중단
+            if (ring.classList.contains('active')) return;
+        
+            // 지식 박스 요소를 가져옵니다 (점수 계산 및 효과 위치용)
+            const knowledgeBox = document.getElementById('knowledge-point'); // 숫자 부분
+            const knowledgeContainer = document.querySelector('.knowledge-box'); // 박스 전체(위치 기준)
+        
+            let currentKnowledge = parseInt(knowledgeBox.innerText);
             
-            // 0.1초마다 게이지 줄어듦
-            const timerInterval = setInterval(() => {
-                timeLeft -= 1;
-                timerBar.style.width = timeLeft + "%";
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    isFeverMode = false;
-                    document.body.classList.remove('fever-mode');
-                    document.getElementById('fever-timer-container').style.display = 'none';
-                    alert("열공 모드가 끝났습니다.");
-                }
-            }, 100); // 10초 동안 (100 * 100ms)
+            // 포인트 부족 체크
+            if (currentKnowledge < 100) {
+                alert("지식이 부족합니다! (100 필요)");
+                return;
+            }
+        
+            // 1. 포인트 차감 로직
+            currentKnowledge -= 100;
+            knowledgeBox.innerText = currentKnowledge;
+            
+            // [★여기 추가됨] 차감 효과 뿅! 띄우기
+            // "-100"이라는 글자를 지식 박스(knowledgeContainer) 근처에 띄움
+            showMinusEffect("-100", knowledgeContainer);
+        
+            // 저장하기 (이전에 추가했다면 유지)
+            if(typeof saveGame === 'function') saveGame(); 
+        
+            // 2. 애니메이션 시작
+            ring.classList.add('active');
+            
+            // 3. 10초 뒤 종료
+            setTimeout(function() {
+                ring.classList.remove('active');
+                // alert("피버 타임 종료!"); // 너무 자주 뜨면 귀찮으니 주석 처리해도 됨
+            }, 10000);
         }
 
         // 클릭 시 +1 효과 텍스트 생성
@@ -909,6 +948,28 @@
             // 완료 안됐는데 지식이 없어도 회색 (단, 완료된 건 우선적으로 회색 유지)
             else if(currentKnowledge < KNOWLEDGE_COST) b.classList.add('disabled');
             else b.classList.remove('disabled');
+        }
+
+        // [추가] 특정 위치에 차감 텍스트(-100)를 띄우는 도우미 함수
+        function showMinusEffect(amount, targetElement) {
+            // 1. 새로운 글자 태그(div)를 만듭니다.
+            const effect = document.createElement('div');
+            effect.innerText = amount;       // 예: "-100"
+            effect.classList.add('minus-text'); // 아까 만든 CSS 스타일 적용
+        
+            // 2. 텍스트가 뜰 위치를 계산합니다. (지식 박스 위치 기준)
+            const rect = targetElement.getBoundingClientRect();
+            // 지식 박스의 가로 중앙, 세로 상단에 위치시킴
+            effect.style.left = (rect.left + rect.width / 2 - 10) + 'px'; 
+            effect.style.top = (rect.top - 20) + 'px'; // 박스보다 살짝 위
+        
+            // 3. 화면에 붙입니다.
+            document.body.appendChild(effect);
+        
+            // 4. 1초 뒤에 청소(삭제)합니다. (계속 쌓이면 렉 걸림)
+            setTimeout(() => {
+                effect.remove();
+            }, 1000);
         }
     </script>
 </body>
