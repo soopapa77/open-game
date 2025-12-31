@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>의사 키우기 : 험난한 의사의 길 (Remastered)</title>
+    
+    <style>
+        /* --- [기본 스타일] --- */
+        /* [수정] body 스타일: 잘림 방지 및 안전 영역 확보 */
+        body {
+            margin: 0; padding: 0; background-color: #f0f8ff;
+            font-family: 'Apple SD Gothic Neo', sans-serif;
+            display: flex; flex-direction: column; 
+            
+            /* vh 대신 dvh 사용 (모바일 맞춤 높이) */
+            height: 100dvh; 
+            
+            overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.5s;
+
+            /* --- [중요] 노치 및 하단 바 안전 영역 확보 --- */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+            box-sizing: border-box; /* 패딩이 높이에 포함되도록 설정 */
+        }
+        /* 피버 모드일 때 배경이 살짝 붉게 변함 */
+        body.fever-mode { background-color: #fff0f0; }
+
+        /* 시작 화면 */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #e3f2fd; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .intro-box {
+            background: white; padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 85%; max-width: 350px;
+        }
+        .intro-title { font-size: 28px; font-weight: 900; color: #0056b3; margin-bottom: 20px; }
+        .gender-btn {
+            width: 45%; padding: 15px; border: 2px solid #ddd; border-radius: 10px;
+            background: #fff; font-size: 16px; font-weight: bold; cursor: pointer; margin: 5px;
+        }
+        .gender-btn.selected { border-color: #4facfe; background-color: #e6f7ff; color: #0056b3; }
+        .login-input {
+            width: 100%; padding: 15px; margin-bottom: 10px; border: 2px solid #ddd;
+            border-radius: 10px; font-size: 16px; box-sizing: border-box; text-align: center;
+        }
+        #start-game-btn {
+            width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 10px;
+            background: #4facfe; color: white; font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+
+        /* 상단바 */
+        .top-bar {
+            flex: 0 0 auto; padding: 10px 15px; background-color: rgba(255,255,255,0.9);
+            text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 10;
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        #player-info { font-size: 14px; font-weight: bold; color: #333; }
+        #level-display { font-size: 16px; font-weight: bold; color: #555; }
+        
+        /* 지식 포인트 표시 (중요) */
+        .knowledge-box {
+            background-color: #e3f2fd; padding: 8px 15px; border-radius: 20px;
+            font-size: 18px; font-weight: 900; color: #0056b3; display: inline-block; margin: 0 auto;
+            border: 2px solid #bbdefb;
+        }
+        .knowledge-highlight { color: #ff9800; font-size: 20px; } /* 포인트 강조색 */
+
+        /* 캐릭터 영역 (터치해서 지식 쌓는 곳) */
+        .character-area {
+            flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; background-color: transparent; overflow: hidden;
+            cursor: pointer; /* 클릭 가능하다는 표시 */
+        }
+        /* 캐릭터 이미지 터치 효과 */
+        #char-img {
+            max-width: 80%; max-height: 55%; object-fit: contain;
+            transition: transform 0.1s; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.1)); z-index: 1;
+        }
+        #char-img:active { transform: scale(0.9) !important; } /* 눌렀을 때 작아짐 */
+
+        /* 아이템(하트) 사용 영역 */
+        .item-container {
+            width: 100%; display: flex; justify-content: center; align-items: center;
+            margin-top: 10px; z-index: 5;
+        }
+        .heart-btn {
+            background-color: #ff4081; color: white; border: none;
+            padding: 8px 20px; border-radius: 25px; font-size: 15px; font-weight: bold;
+            box-shadow: 0 4px 0 #c60055; cursor: pointer; display: flex; align-items: center; gap: 5px;
+            transition: transform 0.1s;
+        }
+        .heart-btn:active { box-shadow: none; transform: translateY(4px); }
+        .heart-btn:disabled { background-color: #ccc; box-shadow: none; cursor: not-allowed; }
+
+        /* 피버 게이지바 (시간제한 표시용) */
+        .fever-timer-box {
+            width: 60%; height: 10px; background-color: #ddd; border-radius: 5px;
+            margin-top: 5px; overflow: hidden; display: none; /* 평소엔 숨김 */
+        }
+        #fever-timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff9a9e, #ff5252); }
+
+        /* 하단 패널 (과목 공부) */
+        /* [수정] 하단 패널: 내용이 넘치면 스크롤 가능하게 변경 */
+        .bottom-panel {
+            flex: 0 1 auto; /* 높이 유동적 조절 */
+            background-color: white;
+            border-top-left-radius: 25px; border-top-right-radius: 25px;
+            padding: 20px 15px 30px 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; align-items: center; 
+            min-height: 35%;
+            
+            /* --- [추가] 내용이 많으면 스크롤 생기게 함 --- */
+            overflow-y: auto; 
+            max-height: 60vh; /* 화면의 60% 이상 차지하지 않게 제한 */
+        }
+        #entrance-exam-area, #study-area, #exam-modal-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; }
+
+        /* 시험장 모달 스타일 */
+        #exam-modal-area { background-color: #fff3cd; padding: 20px; border-radius: 15px; border: 2px solid #ffecb5; text-align: center;}
+        .exam-title { font-size: 20px; font-weight: bold; color: #555; margin-bottom: 10px; }
+        .math-problem { font-size: 40px; font-weight: bold; color: #d35400; margin: 20px 0; letter-spacing: 5px; }
+
+        /* 공부 버튼들 */
+        .study-btn {
+            position: relative; height: 45px; /* 높이 대폭 축소 */
+            border-radius: 8px; border: none; font-weight: bold; color: white;
+            cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            display: flex; flex-direction: row; /* 가로 배치 */
+            justify-content: space-between; /* 양 끝 정렬 */
+            align-items: center; padding: 0 15px; /* 좌우 여백 */
+            font-size: 14px; margin: 0;
+        }
+        .study-btn:active { transform: scale(0.98); }
+        .study-btn.disabled { background-color: #e0e0e0 !important; color: #999; box-shadow: none; }
+        
+        .count-badge { font-size: 11px; margin-top: 3px; opacity: 0.9; }
+        .cost-badge { 
+            font-size: 10px; background: rgba(0,0,0,0.2); 
+            padding: 2px 4px; border-radius: 4px; margin-bottom: 2px; 
+        }
+
+        
+        .list-layout { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+        .list-layout .study-btn { flex-direction: row; justify-content: space-between; padding: 15px 20px; font-size: 16px; }
+        .grid-3x3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; }
+        .grid-3x3 .study-btn { height: 45px; font-size: 13px; padding: 0 8px; } /* 폰트 조금 작게 */
+        .grid-3x4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; }
+        .grid-3x4 .study-btn { height: 45px; font-size: 13px; padding: 0 8px; }
+        .select-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+        
+        .choice-btn { background-color: #fff; border: 2px solid #0056b3; color: #0056b3; padding: 15px; font-size: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .choice-btn:active { background-color: #e6f0ff; transform: scale(0.98); }
+
+        input[type="text"], input[type="number"], input[type="password"] { 
+            width: 100%; padding: 12px; font-size: 16px; margin-top: 10px; 
+            box-sizing: border-box; text-align: center; border: 2px solid #ddd; border-radius: 8px; 
+        }
+        input[type="number"] { font-size: 24px; font-weight: bold; }
+
+        #promote-btn, #submit-exam-btn { margin-top: 15px; padding: 15px 0; width: 100%; background-color: #e0e0e0; color: #888; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: not-allowed; }
+        #promote-btn.active { background-color: #ff6b6b; color: white; cursor: pointer; animation: pulse 1.5s infinite; }
+        #submit-exam-btn { background-color: #27ae60; animation: none; color: white; cursor: pointer; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        
+        #cheat-btn { position: fixed; top: 10px; right: 10px; z-index: 999; background: #ff4757; color: white; border: none; padding: 5px 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        #back-btn { position: fixed; top: 10px; right: 90px; z-index: 999; background: #57606f; color: white; border: none; padding: 5px 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        
+        #loading-msg { color: #888; margin-top: 10px; font-size: 14px; display: none; }
+        .hidden { display: none !important; }
+
+        /* 색상 유틸리티 */
+        .bg-blue { background-color: #4facfe; } .bg-pink { background-color: #ff9a9e; }
+        .bg-purple { background-color: #a18cd1; } .bg-green { background-color: #43e97b; }
+        .bg-orange { background-color: #fbc2eb; } .bg-yellow { background-color: #fa709a; }
+        .bg-gold { background-color: #f6d365; color: #555; }
+        .bg-med { background-color: #00c6fb; } .bg-res { background-color: #4834d4; }
+        .bg-fel { background-color: #6c5ce7; } .bg-doc { background-color: #00b894; }
+        
+        /* 알림 메시지 (터치 시 뜨는 +1 효과 등) */
+        .floating-text {
+            position: absolute; font-weight: bold; font-size: 20px; color: #0056b3;
+            animation: floatUp 0.8s ease-out forwards; pointer-events: none; z-index: 100;
+        }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-50px); } }
+
+        /* 스탯 버튼 (한 줄 스타일) */
+        .stat-upgrade-box {
+            display: flex; 
+            flex-direction: row; 
+            justify-content: space-between; 
+            gap: 5px; 
+            width: 100%; 
+            margin-bottom: 15px; /* 아래쪽 여백 조금 더 줌 */
+            padding: 10px;       /* 안쪽 여백 */
+            border: 2px dashed #90caf9; /* 파란 점선 테두리 */
+            border-radius: 12px; /* 둥근 모서리 */
+            background-color: rgba(255, 255, 255, 0.6); /* 살짝 흰 배경 */
+            box-sizing: border-box; /* 테두리 포함 크기 계산 */
+        }
+        .stat-btn {
+            flex: 1; height: 40px; /* 높이 고정 */
+            padding: 0 10px; border: none; border-radius: 8px;
+            font-size: 13px; font-weight: bold; color: #fff; cursor: pointer;
+            display: flex; flex-direction: row; /* 가로 배치 */
+            justify-content: center; align-items: center; /* 중앙 정렬 */
+            gap: 5px; /* 아이콘과 텍스트 사이 간격 */
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2); 
+        }
+        .stat-btn:active { transform: translateY(2px); box-shadow: none; }
+        .stat-btn:disabled { background-color: #ccc !important; box-shadow: none; }
+        
+        .stat-reading { background-color: #3498db; } /* 파랑 */
+        .stat-fitness { background-color: #e67e22; } /* 주황 */
+        .stat-mental { background-color: #2ecc71; }  /* 초록 */
+        
+        .stat-cost { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <div class="intro-box">
+            <div class="intro-title">👨‍⚕️ 의사 키우기<br><span style="font-size:16px; color:#555;">(Remastered)</span></div>
+            <input type="text" id="intro-name" class="login-input" placeholder="이름 (아이디)" >
+            <input type="password" id="intro-pass" class="login-input" placeholder="비밀번호 4자리" maxlength="4">
+            <div style="display:flex; justify-content:center; margin-top:15px;">
+                <button class="gender-btn selected" onclick="window.selectGender('m', this)">남자</button>
+                <button class="gender-btn" onclick="window.selectGender('f', this)">여자</button>
+            </div>
+            <button id="start-game-btn" onclick="window.loginOrSignup()">시작하기 / 이어하기</button>
+            <div id="loading-msg">데이터를 불러오는 중...</div>
+        </div>
+    </div>
+
+    <button id="cheat-btn" onclick="window.cheatPass()">⚡ 패스</button>
+    <button id="back-btn" onclick="window.cheatBack()">🔙 뒤로</button>
+
+    <div class="top-bar">
+        <div id="player-info">플레이어 정보 로딩중...</div>
+        <div id="level-display">입학 시험 중...</div>
+        
+        <div class="knowledge-box">
+            📚 지식: <span id="knowledge-cnt" class="knowledge-highlight">0</span>
+        </div>
+    </div>
+
+    <div class="character-area" onclick="window.clickCharacter(event)">
+        <img id="char-img" src="" alt="캐릭터">
+        
+        <div class="item-container">
+            <button id="heart-btn" class="heart-btn" onclick="window.useHeart(event)">
+                ❤️ Fever (<span id="heart-cnt">5</span>개)
+            </button>
+        </div>
+        <div id="fever-timer-container" class="fever-timer-box">
+            <div id="fever-timer-bar"></div>
+        </div>
+        <p style="font-size:12px; color:#666; margin-top:5px;">👆 캐릭터를 터치해 지식을 모으세요!</p>
+    </div>
+
+    <div class="bottom-panel">
+        
+        <div id="entrance-exam-area">
+            <h3>[ 1학년 받아쓰기 ]</h3>
+            <p style="margin:5px 0;">"훌륭한 의사가 되자"</p>
+            <input type="text" id="typing-input" placeholder="여기에 입력" oninput="window.checkTyping()">
+            <p id="exam-msg" style="font-size:12px; color:green; height: 15px; margin:5px 0;"></p>
+        </div>
+
+        <div id="exam-modal-area" class="hidden">
+            <h3 id="exam-title-display" class="exam-title">[ 시험 ]</h3>
+            <p id="exam-desc-display">다음 문제를 맞히세요!</p>
+            <div id="math-problem-display" class="math-problem">3 + 5 = ?</div>
+            <input type="number" id="math-input" placeholder="정답 입력">
+            <button id="submit-exam-btn" onclick="window.checkExamAnswer()">답안 제출</button>
+        </div>
+
+        <div id="study-area" class="hidden">
+            
+            <div id="stat-upgrade-group" class="stat-upgrade-box hidden">
+                <button id="btn-stat-read" class="stat-btn stat-reading" onclick="window.upgradeStat('reading')">
+                    📚 독서 Lv.<span id="lv-read">0</span>
+                </button>
+                <button id="btn-stat-fit" class="stat-btn stat-fitness" onclick="window.upgradeStat('fitness')">
+                    💪 체력 Lv.<span id="lv-fit">0</span>
+                </button>
+                <button id="btn-stat-ment" class="stat-btn stat-mental" onclick="window.upgradeStat('mentality')">
+                    🧠 정신 Lv.<span id="lv-ment">0</span>
+                </button>
+            </div>
+
+            <div id="elem-group" class="list-layout hidden">
+                <button id="btn-reading" class="study-btn bg-blue" onclick="window.clickSubject('reading')">
+                    <span>📖 독서</span> <span id="cnt-reading">0/5</span>
+                </button>
+                <button id="btn-english" class="study-btn bg-pink hidden" onclick="window.clickSubject('english')">
+                    <span>🔤 영어</span> <span id="cnt-english">0/5</span>
+                </button>
+                <button id="btn-math" class="study-btn bg-purple hidden" onclick="window.clickSubject('math')">
+                    <span>➕ 수학</span> <span id="cnt-math">0/5</span>
+                </button>
+            </div>
+            
+            <div id="secondary-group" class="grid-3x3 hidden">
+                <button id="btn-kor" class="study-btn bg-blue" onclick="window.clickSubject('kor')">
+                    <span>📚 국어</span><span id="cnt-kor">0/5</span>
+                </button>
+                <button id="btn-eng_m" class="study-btn bg-pink" onclick="window.clickSubject('eng_m')">
+                    <span>🔤 영어</span><span id="cnt-eng_m">0/5</span>
+                </button>
+                <button id="btn-math_m" class="study-btn bg-purple" onclick="window.clickSubject('math_m')">
+                    <span>✖️ 수학</span><span id="cnt-math_m">0/5</span>
+                </button>
+
+                <button id="btn-sci" class="study-btn bg-green" onclick="window.clickSubject('sci')">
+                    <span>🧬 과학</span><span id="cnt-sci">0/5</span>
+                </button>
+                <button id="btn-soc" class="study-btn bg-orange" onclick="window.clickSubject('soc')">
+                    <span>🌍 사회</span><span id="cnt-soc">0/5</span>
+                </button>
+                <button id="btn-info" class="study-btn bg-blue" onclick="window.clickSubject('info')"> <span>💻 정보</span><span id="cnt-info">0/5</span>
+                </button>
+
+                <button id="btn-vol" class="study-btn bg-orange" onclick="window.clickSubject('vol', 3)">
+                    <span>🤝 봉사</span><span id="cnt-vol">0/3</span>
+                </button>
+                <button id="btn-lead" class="study-btn bg-gold" onclick="window.clickSubject('lead', 3)">
+                    <span>👑 임원</span><span id="cnt-lead">0/3</span>
+                </button>
+                <button id="btn-contest" class="study-btn bg-yellow" onclick="window.clickSubject('contest', 3)"> <span>🏆 경시대회</span><span id="cnt-contest">0/3</span>
+                </button>
+            </div>
+
+            <div id="med-group" class="grid-3x4 hidden">
+                <button id="btn-med1" class="study-btn bg-med" onclick="window.clickSubject('med1')"><span class="lbl">1</span><span id="cnt-med1">0/5</span></button>
+                <button id="btn-med2" class="study-btn bg-med" onclick="window.clickSubject('med2')"><span class="lbl">2</span><span id="cnt-med2">0/5</span></button>
+                <button id="btn-med3" class="study-btn bg-med" onclick="window.clickSubject('med3')"><span class="lbl">3</span><span id="cnt-med3">0/5</span></button>
+                <button id="btn-med4" class="study-btn bg-med" onclick="window.clickSubject('med4')"><span class="lbl">4</span><span id="cnt-med4">0/5</span></button>
+                <button id="btn-med5" class="study-btn bg-med" onclick="window.clickSubject('med5')"><span class="lbl">5</span><span id="cnt-med5">0/5</span></button>
+                <button id="btn-med6" class="study-btn bg-med" onclick="window.clickSubject('med6')"><span class="lbl">6</span><span id="cnt-med6">0/5</span></button>
+                <button id="btn-med7" class="study-btn bg-med" onclick="window.clickSubject('med7')"><span class="lbl">7</span><span id="cnt-med7">0/5</span></button>
+                <button id="btn-med8" class="study-btn bg-med" onclick="window.clickSubject('med8')"><span class="lbl">8</span><span id="cnt-med8">0/5</span></button>
+                <button id="btn-med9" class="study-btn bg-med" onclick="window.clickSubject('med9')"><span class="lbl">9</span><span id="cnt-med9">0/5</span></button>
+                <button id="btn-med10" class="study-btn bg-med" onclick="window.clickSubject('med10')"><span class="lbl">10</span><span id="cnt-med10">0/5</span></button>
+                <button id="btn-med11" class="study-btn bg-med" onclick="window.clickSubject('med11')"><span class="lbl">11</span><span id="cnt-med11">0/5</span></button>
+                <button id="btn-med12" class="study-btn bg-med" onclick="window.clickSubject('med12')"><span class="lbl">12</span><span id="cnt-med12">0/5</span></button>
+            </div>
+
+            <div id="major-select-group" class="select-grid hidden">
+                <button class="choice-btn" onclick="window.selectMajor('내과')">내과</button>
+                <button class="choice-btn" onclick="window.selectMajor('외과')">외과</button>
+                <button class="choice-btn" onclick="window.selectMajor('산부인과')">산부인과</button>
+                <button class="choice-btn" onclick="window.selectMajor('소아청소년과')">소아청소년과</button>
+                <button class="choice-btn" onclick="window.selectMajor('정신과')">정신과</button>
+                <button class="choice-btn" onclick="window.selectMajor('피부과')">피부과</button>
+                <button class="choice-btn" onclick="window.selectMajor('안과')">안과</button>
+                <button class="choice-btn" onclick="window.selectMajor('정형외과')">정형외과</button>
+                <button class="choice-btn" onclick="window.selectMajor('재활의학과')">재활의학과</button>
+                <button class="choice-btn" onclick="window.selectMajor('영상의학과')">영상의학과</button>
+            </div>
+            <div id="career-select-group" class="select-grid hidden">
+                <button class="choice-btn" onclick="window.selectCareer('fellow')">🎓 펠로우 (전임의)</button>
+                <button class="choice-btn" onclick="window.selectCareer('bongjik')">🏥 봉직의 (페이닥터)</button>
+            </div>
+        </div>
+
+        <button id="promote-btn" onclick="window.tryPromote()">진급 하기</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+    		apiKey: "AIzaSyBagbEbVl7I8YPP9EK8dww_Z9Zk-RvttBs",
+    		authDomain: "history-game-c7a2e.firebaseapp.com",
+    		projectId: "history-game-c7a2e",
+    		storageBucket: "history-game-c7a2e.firebasestorage.app",
+    		messagingSenderId: "203702783702",
+    		appId: "1:203702783702:web:d6abc423bfd3d9e909c377",
+    		measurementId: "G-1CE9GC27K7"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedName = localStorage.getItem('dr_maker_name');
+            const savedPass = localStorage.getItem('dr_maker_pass');
+            if(savedName) document.getElementById('intro-name').value = savedName;
+            if(savedPass) document.getElementById('intro-pass').value = savedPass;
+        });
+
+        // --- 전역 변수 ---
+        let playerName = ""; let playerGender = "m"; let playerAge = 7; let playerPass = "";
+        let totalScore = 0; // 누적 점수 (경험치)
+        let currentKnowledge = 0; // 현재 보유 지식 (돈 개념) - NEW
+        let currentHearts = 5; // 보유 하트 (아이템) - NEW
+        
+        let currentLevelIdx = 0; let myMajor = ""; 
+        let retryCount = 0; 
+        let mathAnswer = 0; 
+        let currentExamType = ""; 
+        let kmlePassed = false; 
+        let entranceExamPassed = false;
+
+        let isFeverMode = false; // 피버 상태
+        const KNOWLEDGE_COST = 3; // 과목 공부할 때 드는 지식 비용
+
+        let subjectCounts = {
+            reading: 0, english: 0, math: 0, 
+            kor: 0, eng_m: 0, math_m: 0, sci: 0, soc: 0, info: 0, vol: 0, lead: 0, contest: 0, // 중고등 개편
+            med1:0, med2:0, med3:0, med4:0, med5:0, med6:0, med7:0, med8:0, med9:0, med10:0, med11:0, med12:0
+        };
+
+        let statLevels = { reading: 0, fitness: 0, mentality: 0 };    
+        
+
+        const levels = [
+            { name: "초등 1학년", type: 'elem_low', req: 5 }, { name: "초등 2학년", type: 'elem_low', req: 5 }, { name: "초등 3학년", type: 'elem_low', req: 5 },
+            { name: "초등 4학년", type: 'elem_high', req: 5 }, { name: "초등 5학년", type: 'elem_high', req: 5 }, { name: "초등 6학년", type: 'elem_high', req: 5 },
+            { name: "중학교 1학년", type: 'middle', req: 5 }, { name: "중학교 2학년", type: 'middle', req: 5 }, { name: "중학교 3학년", type: 'middle', req: 5 },
+            { name: "고등학교 1학년", type: 'middle', req: 5 }, { name: "고등학교 2학년", type: 'middle', req: 5 }, 
+            { name: "고등학교 3학년", type: 'middle', req: 5, isCheckpoint: true },
+            { name: "의예과 1학년", type: 'med', req: 5 }, { name: "의예과 2학년", type: 'med', req: 5 },
+            { name: "의학과 1학년", type: 'med', req: 5 }, { name: "의학과 2학년", type: 'med', req: 5 },
+            { name: "의학과 3학년 (PK실습)", type: 'med', req: 5 }, 
+            { name: "의학과 4학년 (국시준비)", type: 'med', req: 5, isCheckpoint: true },
+            { name: "인턴 (수련의)", type: 'intern', req: 5 },
+            { name: "전공의 지원", type: 'select_major', req: 0, isCheckpoint: true },
+            { name: "레지던트 1년차", type: 'resident', req: 5 }, { name: "레지던트 2년차", type: 'resident', req: 5 },
+            { name: "레지던트 3년차", type: 'resident', req: 5 }, 
+            { name: "레지던트 4년차 (치프)", type: 'resident', req: 5, isCheckpoint: true },
+            { name: "군의관 1년차", type: 'military', req: 5 }, { name: "군의관 2년차", type: 'military', req: 5 }, { name: "군의관 3년차", type: 'military', req: 5 },
+            { name: "진로 선택", type: 'select_career', req: 0, isCheckpoint: true },
+            { name: "펠로우 1년차", type: 'fellow', req: 5 }, { name: "펠로우 2년차", type: 'fellow', req: 5 },
+            { name: "대학병원 교수", type: 'professor', req: 9999, isCheckpoint: true },
+            { name: "봉직의 1년차", type: 'bongjik', req: 5 }, { name: "봉직의 2년차", type: 'bongjik', req: 5 },
+            { name: "개원병원 대표원장", type: 'director', req: 9999, isCheckpoint: true }
+        ];
+
+        let cumulativeScoreMap = [];
+        function initScoreThresholds() {
+            let acc = 0; levels.forEach((lvl) => { lvl.entryScore = acc; let p=0;
+                if(lvl.type === 'elem_low') p=5; else if(lvl.type === 'elem_high') p=15; else if(lvl.type === 'middle') p=45;
+                else if(['med','intern','resident','exam','fellow','bongjik','military'].includes(lvl.type)) p=60;
+                acc += p; });
+        }
+        initScoreThresholds();
+
+        async function saveGame() {
+            if (!playerName || !playerPass) return;
+            try { await setDoc(doc(db, "users", playerName), { 
+                password: playerPass, gender: playerGender, age: playerAge, score: totalScore, 
+                levelIdx: currentLevelIdx, major: myMajor, counts: subjectCounts, retry: retryCount, kmle: kmlePassed, 
+                entranceExamPassed: entranceExamPassed,
+                knowledge: currentKnowledge, // 저장 추가
+                hearts: currentHearts, // 저장 추가
+                statLevels: statLevels // [추가] 스탯 저장
+            }); } catch (e) { console.error(e); }
+        }
+
+        window.loginOrSignup = async function() {
+            const inputName = document.getElementById('intro-name').value.trim();
+            const inputPass = document.getElementById('intro-pass').value.trim();
+            if(!inputName || inputPass.length !== 4) { alert("이름과 4자리 비밀번호를 입력하세요."); return; }
+            document.getElementById('loading-msg').style.display = 'block';
+            try {
+                const docSnap = await getDoc(doc(db, "users", inputName));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.password === inputPass) {
+                        alert(`환영합니다, ${inputName}님!`);
+                        localStorage.setItem('dr_maker_name', inputName);
+                        localStorage.setItem('dr_maker_pass', inputPass);
+                        playerName = inputName; playerPass = inputPass; playerGender = data.gender; playerAge = data.age;
+                        totalScore = data.score; currentLevelIdx = data.levelIdx; myMajor = data.major || "";
+                        subjectCounts = data.counts || subjectCounts;
+                        statLevels = data.statLevels || { reading: 0, fitness: 0, mentality: 0 };
+                        retryCount = data.retry || 0; kmlePassed = data.kmle || false;
+                        entranceExamPassed = data.entranceExamPassed || false;
+                        
+                        // 새로 추가된 변수 불러오기 (없으면 초기값)
+                        currentKnowledge = data.knowledge || 0;
+                        currentHearts = (data.hearts !== undefined) ? data.hearts : 5;
+
+                        document.getElementById('start-screen').style.display = 'none'; 
+                        if (entranceExamPassed || currentLevelIdx > 0) {
+                            document.getElementById('entrance-exam-area').classList.add('hidden');
+                            document.getElementById('study-area').classList.remove('hidden');
+                        }
+                        updateUI();
+                    } else { alert("비밀번호 불일치"); document.getElementById('loading-msg').style.display = 'none'; }
+                } else {
+                    if(confirm("새로 시작하시겠습니까? (하트 5개 증정)")) {
+                        localStorage.setItem('dr_maker_name', inputName);
+                        localStorage.setItem('dr_maker_pass', inputPass);
+                        playerName = inputName; playerPass = inputPass; 
+                        currentHearts = 5; // 신규 유저 하트 지급
+                        saveGame();
+                        document.getElementById('start-screen').style.display = 'none'; updateUI();
+                    } else { document.getElementById('loading-msg').style.display = 'none'; }
+                }
+            } catch (e) { alert("DB 연결 오류"); document.getElementById('loading-msg').style.display = 'none'; }
+        }
+
+        window.selectGender = function(g, btn) { playerGender = g; document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); }
+        
+        window.cheatPass = function() {
+            if (currentLevelIdx >= levels.length - 1) { alert("최고 레벨입니다!"); return; }
+            const curLvl = levels[currentLevelIdx];
+            if (curLvl.name.includes("의학과 4학년") && !kmlePassed) { kmlePassed = true; }
+            currentLevelIdx++; playerAge++; resetCounts(); saveGame(); updateUI();
+        }
+        window.cheatBack = function() {
+            if (currentLevelIdx > 0) { currentLevelIdx--; playerAge--; updateUI(); }
+        }
+        
+        window.checkTyping = function() {
+            if(document.getElementById('typing-input').value === "훌륭한 의사가 되자") {
+                entranceExamPassed = true;
+                document.getElementById('entrance-exam-area').classList.add('hidden');
+                document.getElementById('study-area').classList.remove('hidden');
+                saveGame(); updateUI();
+            }
+        }
+
+        // [수정] 캐릭터 클릭 함수 (스탯 보너스 추가됨)
+        window.clickCharacter = function(e) {
+            e.stopPropagation(); 
+            
+            const curLvl = levels[currentLevelIdx];
+
+            // 1. 학년 기본 점수 (인덱스 + 1)
+            let baseGain = currentLevelIdx + 1;
+
+            // [밸런스] 봉직의 보정 (펠로우와 동일하게)
+            if (curLvl.type === 'bongjik') {
+                baseGain = baseGain - 3;
+            }
+
+            // 2. [추가] 스탯 보너스 합산 (독서 + 체력 + 정신력)
+            let statBonus = statLevels.reading + statLevels.fitness + statLevels.mentality;
+            let totalGain = baseGain + statBonus;
+
+            // 3. 피버 모드 (총 점수의 3배)
+            let finalGain = isFeverMode ? (totalGain * 3) : totalGain; 
+            
+            currentKnowledge += finalGain;
+
+            // 시각적 효과 (+점수 표시)
+            showFloatingText(e.clientX, e.clientY, `+${finalGain}`);
+            if(navigator.vibrate) navigator.vibrate(10);
+            
+            saveGame(); 
+            updateUI();
+        }
+
+        // [추가] 스탯 업그레이드 함수
+        window.upgradeStat = function(type) {
+            const cost = 10; // 업그레이드 비용
+
+            if (currentKnowledge >= cost) {
+                currentKnowledge -= cost; // 지식 소비
+                statLevels[type]++;       // 해당 스탯 레벨업
+                
+                if(navigator.vibrate) navigator.vibrate(20); // 진동 효과
+                saveGame();
+                updateUI();
+            } else {
+                alert("지식이 부족합니다! (필요: 10)");
+            }
+        }
+        // [새로운 로직 2] 과목 공부 (지식 소비)
+        // [수정] 과목 공부하기 (최대 개수 커스텀 기능 추가)
+        window.clickSubject = function(key, maxReq) {
+            const curLvl = levels[currentLevelIdx]; 
+            
+            // maxReq가 들어오면 그걸 쓰고, 없으면 레벨 기본값(5) 사용
+            const limit = (maxReq !== undefined) ? maxReq : curLvl.req;
+
+            // 이미 마스터했으면 무시
+            if (subjectCounts[key] >= limit) return; 
+
+            // 지식이 충분한지 확인
+            if (currentKnowledge >= KNOWLEDGE_COST) {
+                currentKnowledge -= KNOWLEDGE_COST; 
+                subjectCounts[key]++;               
+                totalScore++;                       
+                
+                if(navigator.vibrate) navigator.vibrate(20);
+                saveGame();
+                updateUI();
+            } else {
+                alert("지식이 부족합니다! 캐릭터를 눌러 지식을 모으세요.");
+            }
+        }
+
+        // [새로운 로직 3] 하트 아이템 사용
+        window.useHeart = function(e) {
+            e.stopPropagation(); // 캐릭터 클릭과 겹치지 않게
+            
+            if (isFeverMode) {
+                alert("이미 열공 모드입니다!");
+                return;
+            }
+
+            if (currentHearts > 0) {
+                currentHearts--;
+                activateFeverMode();
+                saveGame();
+                updateUI();
+            } else {
+                alert("하트가 없습니다 ㅠㅠ");
+            }
+        }
+
+        // 피버 모드 발동 (10초)
+        function activateFeverMode() {
+            isFeverMode = true;
+            document.body.classList.add('fever-mode');
+            document.getElementById('fever-timer-container').style.display = 'block';
+            
+            let timeLeft = 100; // 100%
+            const timerBar = document.getElementById('fever-timer-bar');
+            
+            // 0.1초마다 게이지 줄어듦
+            const timerInterval = setInterval(() => {
+                timeLeft -= 1;
+                timerBar.style.width = timeLeft + "%";
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    isFeverMode = false;
+                    document.body.classList.remove('fever-mode');
+                    document.getElementById('fever-timer-container').style.display = 'none';
+                    alert("열공 모드가 끝났습니다.");
+                }
+            }, 100); // 10초 동안 (100 * 100ms)
+        }
+
+        // 클릭 시 +1 효과 텍스트 생성
+        function showFloatingText(x, y, text) {
+            const el = document.createElement('div');
+            el.innerText = text;
+            el.className = 'floating-text';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        window.selectMajor = function(majorName) {
+            myMajor = majorName; 
+            startExam('resident'); 
+        }
+        window.selectCareer = function(path) {
+            currentLevelIdx = (path === 'fellow') ? 28 : 31; 
+            playerAge++; 
+            alert((path === 'fellow') ? "대학병원 펠로우 과정 시작!" : "로컬병원 봉직의 생활 시작!");
+            resetCounts(); saveGame(); updateUI();
+        }
+
+        function startExam(type) {
+            currentExamType = type;
+            document.getElementById('study-area').classList.add('hidden');
+            document.getElementById('promote-btn').classList.add('hidden');
+            document.getElementById('major-select-group').classList.add('hidden'); 
+            document.getElementById('exam-modal-area').classList.remove('hidden');
+
+            let title = "", desc = "다음 문제를 맞히세요!";
+            if(type === 'csat') title = "📝 대학수학능력시험";
+            else if(type === 'advancement') title = "📚 학년 진급 시험";
+            else if(type === 'kmle') title = "🩺 의사 국가고시 (KMLE)";
+            else if(type === 'intern') title = "🏥 인턴 선발 시험";
+            else if(type === 'resident') title = "🥼 전공의 선발 시험";
+            else if(type === 'specialist') title = "🎖️ 전문의 자격 시험";
+
+            document.getElementById('exam-title-display').innerText = title;
+            document.getElementById('exam-desc-display').innerText = desc;
+
+            const a = Math.floor(Math.random()*9)+1; const b = Math.floor(Math.random()*9)+1;
+            mathAnswer = a+b; 
+            document.getElementById('math-problem-display').innerText = `${a} + ${b} = ?`;
+            document.getElementById('math-input').value = ""; document.getElementById('math-input').focus();
+        }
+
+        window.checkExamAnswer = function() {
+            const userAns = parseInt(document.getElementById('math-input').value);
+            const isCorrect = (userAns === mathAnswer);
+            
+            document.getElementById('exam-modal-area').classList.add('hidden');
+            document.getElementById('study-area').classList.remove('hidden');
+
+            if(isCorrect) {
+                if(currentExamType === 'csat') { alert("축하합니다! 의과대학에 합격하셨습니다!"); currentLevelIdx++; playerAge++; } 
+                else if(currentExamType === 'advancement') { alert("진급 시험 합격! 다음 학년으로 진급합니다."); currentLevelIdx++; playerAge++; }
+                else if(currentExamType === 'kmle') { alert("🎉 [합격] 의사면허를 취득하였습니다! 🎉"); kmlePassed = true; }
+                else if(currentExamType === 'intern') { alert("인턴 선발 시험 합격!"); currentLevelIdx++; playerAge++; }
+                else if(currentExamType === 'resident') { alert(`[${myMajor}] 전공의 시험 합격!`); currentLevelIdx = 20; playerAge++; }
+                else if(currentExamType === 'specialist') {
+                    if (playerGender === 'm') { alert("🏆 전문의 합격! 군의관 입대!"); currentLevelIdx = 24; } 
+                    else { alert("🏆 전문의 합격!"); currentLevelIdx = 27; }
+                }
+                retryCount = 0; resetCounts(); saveGame(); updateUI();
+            } else {
+                retryCount++; playerAge++;
+                alert(`불합격! 다시 공부하세요.`);
+                resetCounts(); saveGame(); updateUI();
+            }
+        }
+
+        window.tryPromote = function() {
+            if(!checkPass(levels[currentLevelIdx])) return;
+            const curLvl = levels[currentLevelIdx];
+
+            if(curLvl.name === "고등학교 3학년") { startExam('csat'); return; }
+            if(currentLevelIdx >= 12 && currentLevelIdx <= 16) { startExam('advancement'); return; }
+            if(curLvl.name.includes("의학과 4학년")) {
+                if(!kmlePassed) startExam('kmle'); else startExam('intern'); return;
+            }
+            if(curLvl.name.includes("레지던트 4년차")) { startExam('specialist'); return; }
+
+            let nextIdx = calculateSkipLevel();
+            let jumpCount = nextIdx - currentLevelIdx - 1;
+            if (jumpCount > 0 && currentLevelIdx < 11) alert(`${jumpCount}단계 월반!`);
+            currentLevelIdx = nextIdx; playerAge++; 
+            resetCounts(); saveGame(); updateUI();
+        }
+
+        function updateCharacterImage(type) {
+            let imgUrl = "elem_m.png";
+            if(playerGender==='m'){
+                if(type==='middle') imgUrl="middle_m.png"; else if(type==='med') imgUrl="med_m.png";
+                else if(type==='intern'||type==='select_major') imgUrl="intern_m.png";
+                else if(type==='resident'||type==='exam') imgUrl="resident_m.png";
+                else if(type==='military') imgUrl="military_m.png";
+                else if(type==='fellow'||type==='professor') imgUrl="fellow_m.png";
+                else if(type==='bongjik'||type==='director') imgUrl="bongjik_m.png";
+            } else {
+                if(type.startsWith('elem')) imgUrl="emem_f.png"; else if(type==='middle') imgUrl="middle_f.png";
+                else if(type==='med') imgUrl="med_f.png";
+                else if(type==='intern'||type==='select_major') imgUrl="intern_f.png";
+                else if(type==='resident'||type==='exam') imgUrl="https://cdn-icons-png.flaticon.com/512/3304/3304567.png";
+                else if(type==='fellow'||type==='professor') imgUrl="https://cdn-icons-png.flaticon.com/512/387/387577.png";
+                else if(type==='bongjik'||type==='director') imgUrl="https://cdn-icons-png.flaticon.com/512/1903/1903169.png";
+                else imgUrl="https://cdn-icons-png.flaticon.com/512/2995/2995656.png";
+            }
+            const c=document.getElementById('char-img'); c.src=imgUrl; 
+        }
+        function resetCounts(){for(let k in subjectCounts)subjectCounts[k]=0;}
+        function calculateSkipLevel(){if(currentLevelIdx>=11)return currentLevelIdx+1; let t=currentLevelIdx+1; for(let i=currentLevelIdx+1;i<levels.length;i++){if(totalScore>=levels[i].entryScore){t=i;if(levels[i].isCheckpoint)break;}else break;} return t;}
+        // [수정] 진급 조건 확인 함수
+        function checkPass(curLvl){
+            const r = curLvl.req; // 기본 5
+            
+            if(curLvl.type === 'elem_low') return subjectCounts.reading >= r; 
+            if(curLvl.type === 'elem_high') return subjectCounts.reading >= r && subjectCounts.english >= r && subjectCounts.math >= r; 
+            
+            // [중요 수정] 중/고등학교 통과 조건
+            if(curLvl.type === 'middle') {
+                // 1, 2번째 줄은 5개 필수
+                const groupA = ['kor', 'eng_m', 'math_m', 'sci', 'soc', 'info'];
+                const passA = groupA.every(k => subjectCounts[k] >= r);
+
+                // 3번째 줄(봉사, 임원, 경시대회)은 3개만 하면 됨
+                const groupB = ['vol', 'lead', 'contest'];
+                const passB = groupB.every(k => subjectCounts[k] >= 3);
+
+                return passA && passB;
+            }
+
+            if(['med','intern','resident','exam','fellow','bongjik','military'].includes(curLvl.type)){
+                for(let i=1; i<=12; i++) if(subjectCounts[`med${i}`] < r) return false; return true;
+            } 
+            return false;
+        }
+
+        function updateUI() {
+            const curLvl = levels[currentLevelIdx];
+            
+            let title = "선생님";
+            if (curLvl.type.startsWith('elem') || curLvl.type === 'middle') title = "학생";
+            else if (curLvl.type === 'med') title = "의대생";
+            else if (curLvl.type === 'professor') title = "교수님";
+            else if (curLvl.type === 'director') title = "원장님";
+
+            let genderStr = (playerGender === 'm') ? "남" : "여";
+            let statusText = curLvl.name;
+
+            if (curLvl.name.includes("의학과 4학년")) {
+                if (kmlePassed) {
+                    if (retryCount > 0) statusText = `의대 졸업 (인턴 재수)`; else statusText = "의대 졸업 (인턴시험준비)";
+                } else { if (retryCount > 0) statusText = `국시 ${retryCount}수생`; }
+            } else if (retryCount > 0) {
+                statusText = `${curLvl.name} (${retryCount+1}수)`;
+            } else if (curLvl.type === 'resident') {
+                statusText = `${myMajor} ${curLvl.name}`;
+            }
+
+            document.getElementById('player-info').innerText = `${playerName} ${title} (${playerAge}세/${genderStr})`;
+            const ld = document.getElementById('level-display');
+            ld.innerText = statusText;
+            ld.style.color = (retryCount > 0) ? "red" : "#555";
+
+            // 지식 및 하트 업데이트
+            document.getElementById('knowledge-cnt').innerText = currentKnowledge;
+            document.getElementById('heart-cnt').innerText = currentHearts;
+
+            updateCharacterImage(curLvl.type);
+
+            // [추가] 스탯 버튼 업데이트
+            // 중학교(인덱스 6) 이상일 때만 보이게 설정
+            if (currentLevelIdx >= 6) {
+                document.getElementById('stat-upgrade-group').classList.remove('hidden');
+                
+                // 레벨 텍스트 갱신
+                document.getElementById('lv-read').innerText = statLevels.reading;
+                document.getElementById('lv-fit').innerText = statLevels.fitness;
+                document.getElementById('lv-ment').innerText = statLevels.mentality;
+
+                // 지식 부족하면 버튼 비활성화 (회색 처리)
+                const statBtns = document.querySelectorAll('.stat-btn');
+                statBtns.forEach(btn => {
+                    btn.disabled = (currentKnowledge < 10);
+                });
+
+            } else {
+                // 초등학생 때는 숨김
+                document.getElementById('stat-upgrade-group').classList.add('hidden');
+            }
+
+
+
+            ['elem-group','secondary-group','med-group','major-select-group','career-select-group'].forEach(g=>document.getElementById(g).classList.add('hidden'));
+            document.getElementById('promote-btn').classList.remove('hidden');
+
+            // 버튼 상태 (지식 부족 시 흐리게) 업데이트
+            const btnList = document.querySelectorAll('.study-btn');
+            btnList.forEach(btn => {
+                if(currentKnowledge < KNOWLEDGE_COST) btn.classList.add('disabled');
+                else btn.classList.remove('disabled');
+            });
+
+            if (curLvl.type.startsWith('elem')) {
+                document.getElementById('elem-group').classList.remove('hidden');
+                document.getElementById('btn-english').classList.toggle('hidden', curLvl.type === 'elem_low');
+                document.getElementById('btn-math').classList.toggle('hidden', curLvl.type === 'elem_low');
+                updateBtn('reading', curLvl.req); if(curLvl.type==='elem_high'){updateBtn('english', curLvl.req);updateBtn('math', curLvl.req);}
+
+            } else if (curLvl.type === 'middle') {
+            document.getElementById('secondary-group').classList.remove('hidden');
+            
+            // 1, 2번째 줄 (목표 5개)
+            ['kor','eng_m','math_m','sci','soc','info'].forEach(k => updateBtn(k, curLvl.req));
+            
+            // 3번째 줄 (목표 3개) - 여기만 숫자 3을 넣습니다
+            ['vol','lead','contest'].forEach(k => updateBtn(k, 3));
+
+            } else if (['med','intern','resident','exam','fellow','bongjik','military'].includes(curLvl.type)) {
+                document.getElementById('med-group').classList.remove('hidden');
+                let prefix="과목", color="bg-med";
+                if(curLvl.type==='intern') prefix="실습";
+                else if(curLvl.type==='resident') { prefix="당직"; color="bg-res"; }
+                else if(curLvl.type==='exam') { prefix="문제"; color="bg-purple"; }
+                else if(curLvl.type==='fellow') { prefix="연구"; color="bg-fel"; }
+                else if(curLvl.type==='bongjik') { prefix="진료"; color="bg-doc"; }
+                else if(curLvl.type==='military') { prefix="훈련"; color="bg-green"; }
+                for(let i=1; i<=12; i++){
+                    const btn=document.getElementById(`btn-med${i}`); btn.querySelector('.lbl').innerText=`${prefix}${i}`;
+                    btn.className=`study-btn ${color}`; updateBtn(`med${i}`, curLvl.req);
+                }
+            } else if (curLvl.type === 'select_major') {
+                document.getElementById('major-select-group').classList.remove('hidden'); document.getElementById('promote-btn').classList.add('hidden');
+            } else if (curLvl.type === 'select_career') {
+                document.getElementById('career-select-group').classList.remove('hidden'); document.getElementById('promote-btn').classList.add('hidden');
+            } else if (['professor','director'].includes(curLvl.type)) {
+                const pb=document.getElementById('promote-btn'); pb.innerText="🏆 엔딩 달성"; pb.disabled=true; pb.classList.remove('active'); return;
+            }
+
+            if (!['select_major','select_career','professor','director'].includes(curLvl.type)) {
+                const pb = document.getElementById('promote-btn');
+                if (checkPass(curLvl)) {
+                    pb.classList.add('active');
+                    if (curLvl.name === "고등학교 3학년") pb.innerText = "수능 시험 보러가기";
+                    else if (currentLevelIdx >= 12 && currentLevelIdx <= 16) pb.innerText = "진급 시험 보기";
+                    else if (curLvl.name.includes("의학과 4학년")) { pb.innerText = (!kmlePassed) ? "의사 국가고시 보기" : "인턴 선발 시험 보기"; }
+                    else if (curLvl.name.includes("레지던트 4년차")) pb.innerText = "전문의 자격 시험 보기";
+                    else if (curLvl.type === 'intern') pb.innerText = "전공의 지원하러 가기";
+                    else {
+                        let jump = calculateSkipLevel() - currentLevelIdx - 1;
+                        pb.innerText = (jump > 0 && currentLevelIdx < 11) ? `🚀 ${jump}단계 월반하기` : "진급 하기";
+                    }
+                    pb.disabled = false;
+                } else { pb.classList.remove('active'); pb.innerText = "목표를 달성하세요"; pb.disabled = true; }
+            }
+        }
+        function updateBtn(key, max) { 
+            const b=document.getElementById(`btn-${key}`), c=document.getElementById(`cnt-${key}`), n=subjectCounts[key]; 
+            if(c)c.innerText=`${n}/${max}`; 
+            
+            // 이미 완료된 과목이면 회색
+            if(n>=max) b.classList.add('disabled');
+            // 완료 안됐는데 지식이 없어도 회색 (단, 완료된 건 우선적으로 회색 유지)
+            else if(currentKnowledge < KNOWLEDGE_COST) b.classList.add('disabled');
+            else b.classList.remove('disabled');
+        }
+    </script>
+</body>
+</html>
